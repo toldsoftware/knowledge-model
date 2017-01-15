@@ -90,19 +90,21 @@
 	            // console.log(excComps);
 	            console.log(problems.filter(function (x) { return x.conflict > 0; }));
 	            domain = { components: comps, problems: problems, hasCalculatedConflict: false, hasCalculatedOccurences: false };
+	            domain.problems.forEach(function (p) { return p['component_obj'] = p.components.map(function (x) { return domain.components[x]; }); });
 	            state = {};
 	            showPriority();
 	        });
 	    }, function (err) { return console.warn(err); });
 	}
 	function showPriority() {
-	    _1.calculatePriority(domain, state);
+	    _1.calculatePriority(domain, state, masterProblemNumber);
 	    var html = '';
 	    var p = domain.problems.map(function (x) { return x; });
 	    p.sort(function (a, b) { return b.userPriority - a.userPriority; });
-	    p.forEach(function (x) { return html += '<br>' + (x.key + " " + Math.round(x.userPriority * 100) / 100 + " = " + Math.round(x.userValue * 100) / 100 + " / " + Math.round(x.userDifficulty * 100) / 100 + " / " + Math.round(x.conflict * 100) / 100); });
+	    p.forEach(function (x) { return html += '<br>' + (x.key + " " + Math.round(x.userPriority * 100) / 100 + " = " + Math.round(x.userValue * 100) / 100 + " / " + Math.round(x.userDifficulty * 100) / 100 + " \n    / " + Math.round(x.conflict * 100) / 100 + " / " + Math.round(x.userProblemsUntilRepeat * 100) / 100); });
 	    host.innerHTML = html;
 	}
+	var masterProblemNumber = 100;
 	function addProblem(key) {
 	    console.log('addProblem', key, state);
 	    key = key.toUpperCase();
@@ -120,6 +122,7 @@
 	            if (s.score >= 0.75 && s.wrong === 0) {
 	                s.score = 1;
 	            }
+	            s.lastRightProblemNumber = masterProblemNumber++;
 	        });
 	    }
 	    showPriority();
@@ -298,6 +301,7 @@
 	    for (var _i = 0, _a = domain.problems; _i < _a.length; _i++) {
 	        var p = _a[_i];
 	        var inverseScores = 0;
+	        var missingCount = 0;
 	        for (var _b = 0, _c = p.components; _b < _c.length; _b++) {
 	            var c = _c[_b];
 	            var cState = state[c];
@@ -305,21 +309,51 @@
 	            if (cState) {
 	                cScore = state[c].score;
 	            }
+	            else {
+	                missingCount++;
+	            }
 	            // Add Difficulty for rare items
 	            var occurenceRatio = domain.components[c].occurences / domain.problems.length;
 	            inverseScores += (1 - cScore) * (10 / (occurenceRatio + 1));
 	        }
-	        p.userDifficulty = (0.0001 + inverseScores) * Math.log(Math.E + p.components.length);
+	        p.userDifficulty = (0.0001 + inverseScores) * Math.log(Math.E + p.components.length) * (1 + missingCount);
 	    }
 	}
 	exports.calculateDifficulty = calculateDifficulty;
-	function calculatePriority(domain, state) {
+	function calculateTiming(domain, state, nextMasterProblemNumber) {
+	    calculateOccurences(domain);
+	    for (var _i = 0, _a = domain.problems; _i < _a.length; _i++) {
+	        var p = _a[_i];
+	        var maxDist = 0;
+	        var totalDist = 0;
+	        var count = 0;
+	        for (var _b = 0, _c = p.components; _b < _c.length; _b++) {
+	            var c = _c[_b];
+	            var cState = state[c];
+	            var lastCorrect = 0;
+	            var lastWrong = 0;
+	            if (cState) {
+	                lastCorrect = cState.lastRightProblemNumber;
+	                lastWrong = cState.lastWrongProblemNumber;
+	            }
+	            var dist = nextMasterProblemNumber - lastCorrect;
+	            maxDist = Math.max(maxDist, dist);
+	            totalDist += dist;
+	            count++;
+	        }
+	        var aveDist = totalDist / count;
+	        p.userProblemsUntilRepeat = 100 / (1 + aveDist);
+	    }
+	}
+	exports.calculateTiming = calculateTiming;
+	function calculatePriority(domain, state, nextMasterProblemNumber) {
 	    calculateValue(domain, state);
 	    calculateDifficulty(domain, state);
 	    calculateConflict(domain);
+	    calculateTiming(domain, state, nextMasterProblemNumber);
 	    for (var _i = 0, _a = domain.problems; _i < _a.length; _i++) {
 	        var p = _a[_i];
-	        p.userPriority = p.userDifficulty === 0 ? 0 : Math.log(1 + (p.userValue / Math.pow((1 + p.userDifficulty), 1.5) / (0.01 + p.conflict)));
+	        p.userPriority = p.userDifficulty === 0 ? 0 : Math.log(1 + (p.userValue / Math.pow(p.userProblemsUntilRepeat, 2) / Math.pow((1 + p.userDifficulty), 1) / (0.01 + p.conflict)));
 	    }
 	}
 	exports.calculatePriority = calculatePriority;

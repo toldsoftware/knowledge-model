@@ -18,6 +18,8 @@ export interface KnowledgeScore {
     // Score is normally a running average of past 5 
     // (i.e. score = 0.8 * score + 0.2 * isRight)
     score: number;
+    lastRightProblemNumber?: number;
+    lastWrongProblemNumber?: number;
 }
 
 export interface KnowledgeComponent {
@@ -41,6 +43,7 @@ export interface KnowledgeProblem {
     userValue?: number;
     userDifficulty?: number;
     userPriority?: number;
+    userNextTargetProblemNumber?: number;
 }
 
 export interface KnowledgeDomain {

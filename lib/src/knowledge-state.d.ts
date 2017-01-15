@@ -5,6 +5,8 @@ export interface KnowledgeScore {
     right: number;
     wrong: number;
     score: number;
+    lastRightProblemNumber?: number;
+    lastWrongProblemNumber?: number;
 }
 export interface KnowledgeComponent {
     name: string;
@@ -30,6 +32,7 @@ export interface KnowledgeProblem {
     userValue?: number;
     userDifficulty?: number;
     userPriority?: number;
+    userNextTargetProblemNumber?: number;
 }
 export interface KnowledgeDomain {
     problems: KnowledgeProblem[];

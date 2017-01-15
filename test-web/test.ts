@@ -43,6 +43,8 @@ function setup() {
             console.log(problems.filter(x => x.conflict > 0));
 
             domain = { components: comps, problems: problems, hasCalculatedConflict: false, hasCalculatedOccurences: false };
+            domain.problems.forEach(p => (p as any)['component_obj'] = p.components.map(x => domain.components[x]));
+
             state = {};
             showPriority();
         });
@@ -50,14 +52,17 @@ function setup() {
 }
 
 function showPriority() {
-    calculatePriority(domain, state);
+    calculatePriority(domain, state, masterProblemNumber);
 
     let html = '';
     let p = domain.problems.map(x => x);
     p.sort((a, b) => b.userPriority - a.userPriority);
-    p.forEach(x => html += '<br>' + (`${x.key} ${Math.round(x.userPriority * 100) / 100} = ${Math.round(x.userValue * 100) / 100} / ${Math.round(x.userDifficulty * 100) / 100} / ${Math.round(x.conflict * 100) / 100}`));
+    p.forEach(x => html += '<br>' + (`${x.key} ${Math.round(x.userPriority * 100) / 100} = ${Math.round(x.userValue * 100) / 100} / ${Math.round(x.userDifficulty * 100) / 100} 
+    / ${Math.round(x.conflict * 100) / 100} / ${Math.round(x.userProblemsUntilRepeat * 100) / 100}`));
     host.innerHTML = html;
 }
+
+let masterProblemNumber = 100;
 
 function addProblem(key: string) {
     console.log('addProblem', key, state);
@@ -74,6 +79,7 @@ function addProblem(key: string) {
             s.right++;
             s.score = s.score * 0.5 + 0.5;
             if (s.score >= 0.75 && s.wrong === 0) { s.score = 1; }
+            s.lastRightProblemNumber = masterProblemNumber++;
         });
     }
 

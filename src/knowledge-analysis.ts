@@ -99,29 +99,61 @@ export function calculateDifficulty(domain: KnowledgeDomain, state: KnowledgeSta
 
     for (let p of domain.problems) {
         let inverseScores = 0;
+        let missingCount = 0;
         for (let c of p.components) {
             let cState = state[c];
             let cScore = 0;
             if (cState) {
                 cScore = state[c].score;
+            } else {
+                missingCount++;
             }
 
             // Add Difficulty for rare items
             let occurenceRatio = domain.components[c].occurences / domain.problems.length;
-
             inverseScores += (1 - cScore) * (10 / (occurenceRatio + 1));
         }
-        p.userDifficulty = (0.0001 + inverseScores) * Math.log(Math.E + p.components.length);
+
+        p.userDifficulty = (0.0001 + inverseScores) * Math.log(Math.E + p.components.length) * (1 + missingCount);
     }
 }
 
-export function calculatePriority(domain: KnowledgeDomain, state: KnowledgeState) {
+export function calculateTiming(domain: KnowledgeDomain, state: KnowledgeState, nextMasterProblemNumber: number) {
+    calculateOccurences(domain);
+
+    for (let p of domain.problems) {
+        let maxDist = 0;
+        let totalDist = 0;
+        let count = 0;
+        for (let c of p.components) {
+            let cState = state[c];
+            let lastCorrect = 0;
+            let lastWrong = 0;
+            if (cState) {
+                lastCorrect = cState.lastRightProblemNumber;
+                lastWrong = cState.lastWrongProblemNumber;
+            }
+
+            let dist = nextMasterProblemNumber - lastCorrect;
+            maxDist = Math.max(maxDist, dist);
+            totalDist += dist;
+            count++;
+        }
+
+        let aveDist = totalDist / count;
+
+        p.userProblemsUntilRepeat = 100 / (1 + aveDist);
+    }
+}
+
+export function calculatePriority(domain: KnowledgeDomain, state: KnowledgeState, nextMasterProblemNumber: number) {
     calculateValue(domain, state);
     calculateDifficulty(domain, state);
     calculateConflict(domain);
+    calculateTiming(domain, state, nextMasterProblemNumber);
 
     for (let p of domain.problems) {
-        p.userPriority = p.userDifficulty === 0 ? 0 : Math.log(1 + (p.userValue / Math.pow((1 + p.userDifficulty), 1.5) / (0.01 + p.conflict)));
+        p.userPriority = p.userDifficulty === 0 ? 0 : Math.log(1 + (p.userValue / Math.pow(p.userProblemsUntilRepeat, 2) / Math.pow((1 + p.userDifficulty), 1) / (0.01 + p.conflict)));
     }
 }
 
