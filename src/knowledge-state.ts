@@ -23,6 +23,10 @@ export interface KnowledgeScore {
 export interface KnowledgeComponent {
     name: string;
     occurences: number;
+    exclusives: {
+        [type: string]: { [keys: string]: KnowledgeComponent }
+    };
+    conflict: number;
 }
 
 export interface KnowledgeComponents {
@@ -32,6 +36,8 @@ export interface KnowledgeComponents {
 export interface KnowledgeProblem {
     key: string;
     components: string[];
+    exclusives: { type: string, items: string[] }[];
+    conflict: number;
     userValue?: number;
     userDifficulty?: number;
     userPriority?: number;
@@ -40,4 +46,6 @@ export interface KnowledgeProblem {
 export interface KnowledgeDomain {
     problems: KnowledgeProblem[];
     components: KnowledgeComponents;
+    hasCalculatedOccurences?: boolean;
+    hasCalculatedConflict?: boolean;
 }

@@ -1,4 +1,5 @@
 import { KnowledgeProblem, KnowledgeComponents } from './knowledge-state';
+import { calculateConflict } from './knowledge-analysis';
 
 
 export function createRelationshipComponentName(a: string, b: string): string {
@@ -18,7 +19,18 @@ export function createComponentsFromProblems(problems: KnowledgeProblem[]): Know
     for (let p of problems) {
         for (let c of p.components) {
             if (!comps[c]) {
-                comps[c] = { name: c, occurences: 0 };
+                comps[c] = { name: c, occurences: 0, exclusives: {}, conflict: 0 };
+            }
+        }
+
+        for (let exclusive of p.exclusives) {
+
+            let exc = {} as any;
+            for (let item of exclusive.items) {
+                if (exc[item]) { continue; }
+                exc[item] = true;
+                comps[item].exclusives[exclusive.type] = comps[item].exclusives[exclusive.type] || {};
+                exclusive.items.filter(x => x !== item).forEach(x => comps[item].exclusives[exclusive.type][x] = comps[x]);
             }
         }
     }

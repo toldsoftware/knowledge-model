@@ -26,15 +26,26 @@ function setup() {
 
     let ajax = new Ajax();
     ajax.get('/Words_UniXode_Kids.txt', r => {
-        // ajax.get('/Words_UniXode.txt', r => {
-        let result = loadUnixode(r);
-        let words = result.words.map(x => x.pairs.map(x2 => ({ letters: x2.english, sound: x2.xharish })));
-        let problems = words.map(x => createSpellingProblem(x)).map(x => x.problem);
-        let comps = createComponentsFromProblems(problems);
-        domain = { components: comps, problems: problems };
-        state = {};
-        showPriority();
+        setTimeout(() => {
+            // ajax.get('/Words_UniXode.txt', r => {
+            let result = loadUnixode(r);
+            let words = result.words.map(x => x.pairs.map(x2 => ({ letters: x2.english, sound: x2.xharish })));
+            let problems = words.map(x => createSpellingProblem(x));
+            let comps = createComponentsFromProblems(problems);
 
+            // let excComps = [] as any;
+            // for (let k in comps) {
+            //     if (Object.getOwnPropertyNames(comps[k].exclusives).length === 0) { continue; }
+            //     excComps.push(comps[k]);
+            // }
+            // console.log(excComps);
+
+            console.log(problems.filter(x => x.conflict > 0));
+
+            domain = { components: comps, problems: problems, hasCalculatedConflict: false, hasCalculatedOccurences: false };
+            state = {};
+            showPriority();
+        });
     }, err => console.warn(err));
 }
 
@@ -44,7 +55,7 @@ function showPriority() {
     let html = '';
     let p = domain.problems.map(x => x);
     p.sort((a, b) => b.userPriority - a.userPriority);
-    p.forEach(x => html += '<br>' + (`${x.key} ${Math.round(x.userPriority * 100) / 100} = ${Math.round(x.userValue * 100) / 100} / ${Math.round(x.userDifficulty * 100) / 100}`));
+    p.forEach(x => html += '<br>' + (`${x.key} ${Math.round(x.userPriority * 100) / 100} = ${Math.round(x.userValue * 100) / 100} / ${Math.round(x.userDifficulty * 100) / 100} / ${Math.round(x.conflict * 100) / 100}`));
     host.innerHTML = html;
 }
 

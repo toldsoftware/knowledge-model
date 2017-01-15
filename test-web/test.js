@@ -53,10 +53,10 @@
 	    }
 	    return t;
 	};
-	var _1 = __webpack_require__(5);
-	var spelling_1 = __webpack_require__(3);
-	var ajax_1 = __webpack_require__(1);
-	var unixode_loader_1 = __webpack_require__(2);
+	var _1 = __webpack_require__(1);
+	var spelling_1 = __webpack_require__(5);
+	var ajax_1 = __webpack_require__(6);
+	var unixode_loader_1 = __webpack_require__(7);
 	var domain = null;
 	var state = null;
 	var host = null;
@@ -76,14 +76,23 @@
 	    document.body.appendChild(host);
 	    var ajax = new ajax_1.Ajax();
 	    ajax.get('/Words_UniXode_Kids.txt', function (r) {
-	        // ajax.get('/Words_UniXode.txt', r => {
-	        var result = unixode_loader_1.loadUnixode(r);
-	        var words = result.words.map(function (x) { return x.pairs.map(function (x2) { return ({ letters: x2.english, sound: x2.xharish }); }); });
-	        var problems = words.map(function (x) { return spelling_1.createSpellingProblem(x); }).map(function (x) { return x.problem; });
-	        var comps = _1.createComponentsFromProblems(problems);
-	        domain = { components: comps, problems: problems };
-	        state = {};
-	        showPriority();
+	        setTimeout(function () {
+	            // ajax.get('/Words_UniXode.txt', r => {
+	            var result = unixode_loader_1.loadUnixode(r);
+	            var words = result.words.map(function (x) { return x.pairs.map(function (x2) { return ({ letters: x2.english, sound: x2.xharish }); }); });
+	            var problems = words.map(function (x) { return spelling_1.createSpellingProblem(x); });
+	            var comps = _1.createComponentsFromProblems(problems);
+	            // let excComps = [] as any;
+	            // for (let k in comps) {
+	            //     if (Object.getOwnPropertyNames(comps[k].exclusives).length === 0) { continue; }
+	            //     excComps.push(comps[k]);
+	            // }
+	            // console.log(excComps);
+	            console.log(problems.filter(function (x) { return x.conflict > 0; }));
+	            domain = { components: comps, problems: problems, hasCalculatedConflict: false, hasCalculatedOccurences: false };
+	            state = {};
+	            showPriority();
+	        });
 	    }, function (err) { return console.warn(err); });
 	}
 	function showPriority() {
@@ -91,7 +100,7 @@
 	    var html = '';
 	    var p = domain.problems.map(function (x) { return x; });
 	    p.sort(function (a, b) { return b.userPriority - a.userPriority; });
-	    p.forEach(function (x) { return html += '<br>' + (x.key + " " + Math.round(x.userPriority * 100) / 100 + " = " + Math.round(x.userValue * 100) / 100 + " / " + Math.round(x.userDifficulty * 100) / 100); });
+	    p.forEach(function (x) { return html += '<br>' + (x.key + " " + Math.round(x.userPriority * 100) / 100 + " = " + Math.round(x.userValue * 100) / 100 + " / " + Math.round(x.userDifficulty * 100) / 100 + " / " + Math.round(x.conflict * 100) / 100); });
 	    host.innerHTML = html;
 	}
 	function addProblem(key) {
@@ -120,6 +129,263 @@
 
 /***/ },
 /* 1 */
+/***/ function(module, exports, __webpack_require__) {
+
+	"use strict";
+	function __export(m) {
+	    for (var p in m) if (!exports.hasOwnProperty(p)) exports[p] = m[p];
+	}
+	__export(__webpack_require__(2));
+	__export(__webpack_require__(3));
+
+
+/***/ },
+/* 2 */
+/***/ function(module, exports) {
+
+	"use strict";
+	function createRelationshipComponentName(a, b) {
+	    if (b < a) {
+	        var c = a;
+	        a = b;
+	        b = c;
+	    }
+	    return a.replace(/~/g, '\\~') + '~' + b.replace(/~/g, '\\~');
+	}
+	exports.createRelationshipComponentName = createRelationshipComponentName;
+	function createComponentsFromProblems(problems) {
+	    var comps = {};
+	    for (var _i = 0, problems_1 = problems; _i < problems_1.length; _i++) {
+	        var p = problems_1[_i];
+	        for (var _a = 0, _b = p.components; _a < _b.length; _a++) {
+	            var c = _b[_a];
+	            if (!comps[c]) {
+	                comps[c] = { name: c, occurences: 0, exclusives: {}, conflict: 0 };
+	            }
+	        }
+	        var _loop_1 = function (exclusive) {
+	            var exc = {};
+	            var _loop_2 = function (item) {
+	                if (exc[item]) {
+	                    return "continue";
+	                }
+	                exc[item] = true;
+	                comps[item].exclusives[exclusive.type] = comps[item].exclusives[exclusive.type] || {};
+	                exclusive.items.filter(function (x) { return x !== item; }).forEach(function (x) { return comps[item].exclusives[exclusive.type][x] = comps[x]; });
+	            };
+	            for (var _i = 0, _a = exclusive.items; _i < _a.length; _i++) {
+	                var item = _a[_i];
+	                _loop_2(item);
+	            }
+	        };
+	        for (var _c = 0, _d = p.exclusives; _c < _d.length; _c++) {
+	            var exclusive = _d[_c];
+	            _loop_1(exclusive);
+	        }
+	    }
+	    return comps;
+	}
+	exports.createComponentsFromProblems = createComponentsFromProblems;
+
+
+/***/ },
+/* 3 */
+/***/ function(module, exports, __webpack_require__) {
+
+	"use strict";
+	var utils_1 = __webpack_require__(4);
+	function calculateOccurences(domain) {
+	    if (domain.hasCalculatedOccurences) {
+	        return;
+	    }
+	    domain.hasCalculatedOccurences = true;
+	    for (var _i = 0, _a = domain.problems; _i < _a.length; _i++) {
+	        var p = _a[_i];
+	        for (var _b = 0, _c = p.components; _b < _c.length; _b++) {
+	            var c = _c[_b];
+	            if (!domain.components[c]) {
+	                domain.components[c] = { name: c, occurences: 0, exclusives: {}, conflict: 0 };
+	            }
+	            domain.components[c].occurences++;
+	        }
+	    }
+	}
+	exports.calculateOccurences = calculateOccurences;
+	function calculateConflict(domain) {
+	    if (domain.hasCalculatedConflict) {
+	        return;
+	    }
+	    domain.hasCalculatedConflict = true;
+	    calculateOccurences(domain);
+	    var _loop_1 = function (p) {
+	        var compInsideRatios = [];
+	        var ratiosDebug = [];
+	        var _loop_2 = function (c) {
+	            var comp = domain.components[c];
+	            utils_1.forprops(comp.exclusives, function (x) {
+	                var othersInProblem = [];
+	                var othersNotInProblem = [];
+	                utils_1.forprops(x, function (o) {
+	                    var isInProblem = p.components.indexOf(o.name) >= 0;
+	                    if (isInProblem) {
+	                        othersInProblem.push(o);
+	                    }
+	                    else {
+	                        othersNotInProblem.push(o);
+	                    }
+	                });
+	                var inProblemOccurences = othersInProblem.reduce(function (out, o) { return out += o.occurences; }, 0);
+	                var outProblemOccurences = othersNotInProblem.reduce(function (out, o) { return out += o.occurences; }, 0);
+	                if (othersInProblem.length > 1) {
+	                    var minInProblemOccurences = othersInProblem.reduce(function (out, o) { return out < o.occurences ? out : o.occurences; }, 1000000000);
+	                    compInsideRatios.push(Math.pow(minInProblemOccurences / (inProblemOccurences + outProblemOccurences), othersInProblem.length));
+	                }
+	                else {
+	                    compInsideRatios.push(inProblemOccurences / (inProblemOccurences + outProblemOccurences));
+	                }
+	                ratiosDebug.push({ comp: comp, exclusive: x, ratio: compInsideRatios[compInsideRatios.length - 1] });
+	            });
+	        };
+	        for (var _i = 0, _a = p.components; _i < _a.length; _i++) {
+	            var c = _a[_i];
+	            _loop_2(c);
+	        }
+	        p.conflict = -Math.log(compInsideRatios.reduce(function (out, r) { return out *= r; }, 1));
+	    };
+	    // for (let k in domain.components) {
+	    //     let c = domain.components[k];
+	    //     let totalUniquenessDeviationRatios = 0;
+	    //     let typeCount = 0;
+	    //     for (let exk in c.exclusives) {
+	    //         let ex = c.exclusives[exk];
+	    //         let occurences = [];
+	    //         for (let ok in ex) {
+	    //             let o = ex[ok];
+	    //             occurences.push(o.occurences);
+	    //         }
+	    //         if (occurences.length === 1) { continue; }
+	    //         let stats = calculateStats(occurences);
+	    //         totalUniquenessDeviationRatios += stats.stdDeviation / stats.range;
+	    //         typeCount++;
+	    //     }
+	    //     c.conflict = typeCount === 0 ? 0 : 1 - totalUniquenessDeviationRatios / typeCount;
+	    //     if (c.conflict <= 0 && typeCount > 0) {
+	    //         let breakdance = true;
+	    //     }
+	    // }
+	    for (var _i = 0, _a = domain.problems; _i < _a.length; _i++) {
+	        var p = _a[_i];
+	        _loop_1(p);
+	    }
+	}
+	exports.calculateConflict = calculateConflict;
+	function calculateValue(domain, state) {
+	    calculateOccurences(domain);
+	    for (var _i = 0, _a = domain.problems; _i < _a.length; _i++) {
+	        var p = _a[_i];
+	        var value = 0;
+	        for (var _b = 0, _c = p.components; _b < _c.length; _b++) {
+	            var c = _c[_b];
+	            var cScore = !state[c] ? 0 : state[c].score;
+	            value += (1 - cScore) * Math.log(Math.E + domain.components[c].occurences);
+	        }
+	        p.userValue = value;
+	    }
+	}
+	exports.calculateValue = calculateValue;
+	function calculateDifficulty(domain, state) {
+	    calculateOccurences(domain);
+	    for (var _i = 0, _a = domain.problems; _i < _a.length; _i++) {
+	        var p = _a[_i];
+	        var inverseScores = 0;
+	        for (var _b = 0, _c = p.components; _b < _c.length; _b++) {
+	            var c = _c[_b];
+	            var cState = state[c];
+	            var cScore = 0;
+	            if (cState) {
+	                cScore = state[c].score;
+	            }
+	            // Add Difficulty for rare items
+	            var occurenceRatio = domain.components[c].occurences / domain.problems.length;
+	            inverseScores += (1 - cScore) * (10 / (occurenceRatio + 1));
+	        }
+	        p.userDifficulty = (0.0001 + inverseScores) * Math.log(Math.E + p.components.length);
+	    }
+	}
+	exports.calculateDifficulty = calculateDifficulty;
+	function calculatePriority(domain, state) {
+	    calculateValue(domain, state);
+	    calculateDifficulty(domain, state);
+	    calculateConflict(domain);
+	    for (var _i = 0, _a = domain.problems; _i < _a.length; _i++) {
+	        var p = _a[_i];
+	        p.userPriority = p.userDifficulty === 0 ? 0 : Math.log(1 + (p.userValue / Math.pow((1 + p.userDifficulty), 1.5) / (0.01 + p.conflict)));
+	    }
+	}
+	exports.calculatePriority = calculatePriority;
+
+
+/***/ },
+/* 4 */
+/***/ function(module, exports) {
+
+	"use strict";
+	function forprops(obj, callback) {
+	    for (var k in obj) {
+	        callback(obj[k], k);
+	    }
+	}
+	exports.forprops = forprops;
+
+
+/***/ },
+/* 5 */
+/***/ function(module, exports, __webpack_require__) {
+
+	"use strict";
+	var knowledge_problems_1 = __webpack_require__(2);
+	function createSpellingProblem(wordPairs) {
+	    var comps = [];
+	    var exclusives = [];
+	    var wordEnglish = wordPairs.map(function (x) { return x.letters; }).join('');
+	    for (var _i = 0, wordPairs_1 = wordPairs; _i < wordPairs_1.length; _i++) {
+	        var pair = wordPairs_1[_i];
+	        var letters = 'l:' + pair.letters;
+	        var sound = 's:' + pair.sound;
+	        comps.push(letters);
+	        comps.push(sound);
+	        exclusives.push({ type: 'letters_sound', items: [letters, sound] });
+	        comps.push(knowledge_problems_1.createRelationshipComponentName(letters, sound));
+	        comps.push(knowledge_problems_1.createRelationshipComponentName(letters, wordEnglish));
+	        // exclusives.push({ type: 'wordLetters_sound', items: [comps[comps.length - 1], sound] });
+	        comps.push(knowledge_problems_1.createRelationshipComponentName(sound, wordEnglish));
+	        comps.push(knowledge_problems_1.createRelationshipComponentName(sound, '(hear)'));
+	        pair.letters.split('').forEach(function (c) { return comps.push(knowledge_problems_1.createRelationshipComponentName('l:' + c, '(type)')); });
+	        if (pair.letters.length > 0) {
+	            pair.letters.split('').forEach(function (c) { return comps.push(knowledge_problems_1.createRelationshipComponentName('l:' + c, '(read)')); });
+	        }
+	        comps.push(knowledge_problems_1.createRelationshipComponentName(letters, '(read)'));
+	    }
+	    var keys = {};
+	    comps = comps.filter(function (x) {
+	        if (keys[x]) {
+	            return false;
+	        }
+	        keys[x] = true;
+	        return true;
+	    });
+	    return {
+	        key: wordEnglish,
+	        components: comps,
+	        exclusives: exclusives,
+	        conflict: 0
+	    };
+	}
+	exports.createSpellingProblem = createSpellingProblem;
+
+
+/***/ },
+/* 6 */
 /***/ function(module, exports) {
 
 	"use strict";
@@ -222,7 +488,7 @@
 
 
 /***/ },
-/* 2 */
+/* 7 */
 /***/ function(module, exports) {
 
 	"use strict";
@@ -260,152 +526,6 @@
 	    };
 	}
 	exports.loadUnixode = loadUnixode;
-
-
-/***/ },
-/* 3 */
-/***/ function(module, exports, __webpack_require__) {
-
-	"use strict";
-	var knowledge_problems_1 = __webpack_require__(4);
-	function createSpellingProblem(word) {
-	    var comps = [];
-	    var key = word.map(function (x) { return x.letters; }).join('');
-	    for (var _i = 0, word_1 = word; _i < word_1.length; _i++) {
-	        var x = word_1[_i];
-	        var letters = 'l:' + x.letters;
-	        var sound = 's:' + x.sound;
-	        comps.push(letters);
-	        comps.push(sound);
-	        comps.push(knowledge_problems_1.createRelationshipComponentName(letters, sound));
-	        comps.push(knowledge_problems_1.createRelationshipComponentName(letters, key));
-	        comps.push(knowledge_problems_1.createRelationshipComponentName(sound, key));
-	        comps.push(knowledge_problems_1.createRelationshipComponentName(sound, '(hear)'));
-	        x.letters.split('').forEach(function (c) { return comps.push(knowledge_problems_1.createRelationshipComponentName('l:' + c, '(type)')); });
-	        if (x.letters.length > 0) {
-	            x.letters.split('').forEach(function (c) { return comps.push(knowledge_problems_1.createRelationshipComponentName('l:' + c, '(read)')); });
-	        }
-	        comps.push(knowledge_problems_1.createRelationshipComponentName(letters, '(read)'));
-	    }
-	    var keys = {};
-	    comps = comps.filter(function (x) {
-	        if (keys[x]) {
-	            return false;
-	        }
-	        keys[x] = true;
-	        return true;
-	    });
-	    return {
-	        problem: { key: key, components: comps },
-	        componentNames: comps
-	    };
-	}
-	exports.createSpellingProblem = createSpellingProblem;
-
-
-/***/ },
-/* 4 */
-/***/ function(module, exports) {
-
-	"use strict";
-	function createRelationshipComponentName(a, b) {
-	    if (b < a) {
-	        var c = a;
-	        a = b;
-	        b = c;
-	    }
-	    return a.replace(/~/g, '\\~') + '~' + b.replace(/~/g, '\\~');
-	}
-	exports.createRelationshipComponentName = createRelationshipComponentName;
-	function createComponentsFromProblems(problems) {
-	    var comps = {};
-	    for (var _i = 0, problems_1 = problems; _i < problems_1.length; _i++) {
-	        var p = problems_1[_i];
-	        for (var _a = 0, _b = p.components; _a < _b.length; _a++) {
-	            var c = _b[_a];
-	            if (!comps[c]) {
-	                comps[c] = { name: c, occurences: 0 };
-	            }
-	        }
-	    }
-	    return comps;
-	}
-	exports.createComponentsFromProblems = createComponentsFromProblems;
-
-
-/***/ },
-/* 5 */
-/***/ function(module, exports, __webpack_require__) {
-
-	"use strict";
-	function __export(m) {
-	    for (var p in m) if (!exports.hasOwnProperty(p)) exports[p] = m[p];
-	}
-	__export(__webpack_require__(4));
-	__export(__webpack_require__(6));
-
-
-/***/ },
-/* 6 */
-/***/ function(module, exports) {
-
-	"use strict";
-	function calculateOccurences(domain) {
-	    for (var _i = 0, _a = domain.problems; _i < _a.length; _i++) {
-	        var p = _a[_i];
-	        for (var _b = 0, _c = p.components; _b < _c.length; _b++) {
-	            var c = _c[_b];
-	            if (!domain.components[c]) {
-	                domain.components[c] = { name: c, occurences: 0 };
-	            }
-	            domain.components[c].occurences++;
-	        }
-	    }
-	}
-	exports.calculateOccurences = calculateOccurences;
-	function calculateValue(domain, state) {
-	    calculateOccurences(domain);
-	    for (var _i = 0, _a = domain.problems; _i < _a.length; _i++) {
-	        var p = _a[_i];
-	        var value = 0;
-	        for (var _b = 0, _c = p.components; _b < _c.length; _b++) {
-	            var c = _c[_b];
-	            var cScore = !state[c] ? 0 : state[c].score;
-	            value += (1 - cScore) * Math.log(Math.E + domain.components[c].occurences);
-	        }
-	        p.userValue = value;
-	    }
-	}
-	exports.calculateValue = calculateValue;
-	function calculateDifficulty(domain, state) {
-	    calculateOccurences(domain);
-	    for (var _i = 0, _a = domain.problems; _i < _a.length; _i++) {
-	        var p = _a[_i];
-	        var inverseScores = 0;
-	        for (var _b = 0, _c = p.components; _b < _c.length; _b++) {
-	            var c = _c[_b];
-	            var cState = state[c];
-	            var cScore = 0;
-	            if (cState) {
-	                cScore = state[c].score;
-	            }
-	            // Add Difficulty for rare items
-	            var occurenceRatio = domain.components[c].occurences / domain.problems.length;
-	            inverseScores += (1 - cScore) * (10 / (occurenceRatio + 1));
-	        }
-	        p.userDifficulty = inverseScores * Math.log(Math.E + p.components.length);
-	    }
-	}
-	exports.calculateDifficulty = calculateDifficulty;
-	function calculatePriority(domain, state) {
-	    calculateValue(domain, state);
-	    calculateDifficulty(domain, state);
-	    for (var _i = 0, _a = domain.problems; _i < _a.length; _i++) {
-	        var p = _a[_i];
-	        p.userPriority = p.userDifficulty === 0 ? 0 : p.userValue / p.userDifficulty;
-	    }
-	}
-	exports.calculatePriority = calculatePriority;
 
 
 /***/ }
